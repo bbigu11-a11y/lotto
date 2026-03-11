@@ -1,0 +1,5 @@
+{
+  "name": "로또 번호 추첨기",
+  "description": "행운의 로또 번호를 생성하고 관리하는 깔끔한 웹 애플리케이션입니다.",
+  "requestFramePermissions": []
+}
