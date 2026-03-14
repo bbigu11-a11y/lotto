@@ -561,7 +561,7 @@ export default function App() {
               <h3 className="text-sm font-bold text-amber-900">수파베이스 설정이 필요합니다</h3>
               <p className="text-xs text-amber-700 mt-1 leading-relaxed">
                 우측 상단 <b>Settings &gt; Secrets</b>에서 <code className="bg-amber-100 px-1 rounded">VITE_SUPABASE_URL</code>과 
-                <code className="bg-amber-100 px-1 rounded ml-1">VITE_SUPABASE_ANON_KEY</code>를 설정해주세요.
+                <code className="bg-amber-100 px-1 rounded ml-1">VITE_SUPABASE_ANON_KEY</code> (Publishable Key)를 설정해주세요.
               </p>
             </div>
           </div>
