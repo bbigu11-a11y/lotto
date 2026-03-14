@@ -30,10 +30,6 @@ export default function App() {
   const [signUpUserType, setSignUpUserType] = useState<'beauty' | 'social' | null>('beauty');
   const [signUpNickname, setSignUpNickname] = useState('');
   const [isNicknameChecked, setIsNicknameChecked] = useState(false);
-  const [signUpVerificationCode, setSignUpVerificationCode] = useState('');
-  const [isCodeSent, setIsCodeSent] = useState(false);
-  const [isVerified, setIsVerified] = useState(false);
-  const [timer, setTimer] = useState(0);
 
   // Load history and auth state on mount
   useEffect(() => {
@@ -126,44 +122,30 @@ export default function App() {
     setIsLoading(false);
   };
 
-  // Timer for verification code
-  useEffect(() => {
-    let interval: number;
-    if (timer > 0) {
-      interval = window.setInterval(() => {
-        setTimer((prev) => prev - 1);
-      }, 1000);
-    }
-    return () => clearInterval(interval);
-  }, [timer]);
-
-  const sendVerificationCode = () => {
-    if (!signUpPhone) {
-      alert('전화번호를 입력해주세요.');
-      return;
-    }
-    setIsCodeSent(true);
-    setTimer(180); // 3 minutes
-    alert('인증번호가 발송되었습니다. (테스트 인증번호: 1234)');
-  };
-
-  const verifyCode = () => {
-    if (signUpVerificationCode === '1234') {
-      setIsVerified(true);
-      alert('인증이 완료되었습니다.');
-    } else {
-      alert('인증번호가 일치하지 않습니다.');
-    }
-  };
-
-  const checkNicknameDuplicate = () => {
+  const checkNicknameDuplicate = async () => {
     if (!signUpNickname) {
       alert('별명을 입력해주세요.');
       return;
     }
-    // Mock duplicate check
-    setIsNicknameChecked(true);
-    alert('사용 가능한 별명입니다.');
+
+    setIsLoading(true);
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('nickname')
+      .eq('nickname', signUpNickname)
+      .single();
+
+    if (error && error.code !== 'PGRST116') { // PGRST116 is "no rows found"
+      console.error('Error checking nickname:', error);
+      alert('중복 확인 중 오류가 발생했습니다.');
+    } else if (data) {
+      alert('이미 사용 중인 별명입니다.');
+      setIsNicknameChecked(false);
+    } else {
+      setIsNicknameChecked(true);
+      alert('사용 가능한 별명입니다.');
+    }
+    setIsLoading(false);
   };
 
   const handleSignUp = async (e: FormEvent) => {
@@ -174,10 +156,6 @@ export default function App() {
     }
     if (!isNicknameChecked) {
       alert('별명 중복 확인을 해주세요.');
-      return;
-    }
-    if (!isVerified) {
-      alert('전화번호 인증을 완료해주세요.');
       return;
     }
     if (signUpPassword !== signUpConfirmPassword) {
@@ -339,61 +317,18 @@ export default function App() {
             </div>
             <div>
               <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 ml-1">전화번호</label>
-              <div className="flex gap-2">
-                <div className="relative flex-1">
-                  <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300" />
-                  <input 
-                    type="tel" 
-                    required
-                    disabled={isVerified}
-                    placeholder="010-1234-5678"
-                    value={signUpPhone}
-                    onChange={(e) => setSignUpPhone(e.target.value)}
-                    className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all disabled:opacity-50"
-                  />
-                </div>
-                <button
-                  type="button"
-                  onClick={sendVerificationCode}
-                  disabled={isVerified || (isCodeSent && timer > 0)}
-                  className="px-4 py-3.5 bg-slate-100 text-slate-600 rounded-2xl text-xs font-bold hover:bg-slate-200 transition-all disabled:opacity-50 whitespace-nowrap"
-                >
-                  {isVerified ? '인증됨' : isCodeSent ? '재발송' : '인증요청'}
-                </button>
+              <div className="relative">
+                <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300" />
+                <input 
+                  type="tel" 
+                  required
+                  placeholder="010-1234-5678"
+                  value={signUpPhone}
+                  onChange={(e) => setSignUpPhone(e.target.value)}
+                  className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                />
               </div>
             </div>
-
-            {isCodeSent && !isVerified && (
-              <motion.div 
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                className="space-y-2"
-              >
-                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 ml-1">인증번호</label>
-                <div className="flex gap-2">
-                  <div className="relative flex-1">
-                    <CheckCircle2 className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300" />
-                    <input 
-                      type="text" 
-                      placeholder="4자리 숫자 입력"
-                      value={signUpVerificationCode}
-                      onChange={(e) => setSignUpVerificationCode(e.target.value)}
-                      className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
-                    />
-                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-mono text-red-500">
-                      {Math.floor(timer / 60)}:{String(timer % 60).padStart(2, '0')}
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={verifyCode}
-                    className="px-6 py-3.5 bg-emerald-600 text-white rounded-2xl text-xs font-bold hover:bg-emerald-700 transition-all"
-                  >
-                    확인
-                  </button>
-                </div>
-              </motion.div>
-            )}
             <div>
               <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 ml-1">지역</label>
               <div className="relative">
