@@ -1,7 +1,7 @@
 import { useState, useEffect, FormEvent } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { RefreshCw, History, Trash2, Trophy, Sparkles, User, LogIn, ArrowLeft, Mail, Lock, UserPlus, ShieldCheck, Phone, MapPin, CheckCircle2, Scissors, HeartHandshake, Fingerprint } from 'lucide-react';
-import { supabase } from './lib/supabase';
+import { supabase, isPlaceholder } from './lib/supabase';
 
 type LottoHistory = {
   id: number;
@@ -19,6 +19,7 @@ export default function App() {
   const [userEmail, setUserEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [dbStatus, setDbStatus] = useState<'checking' | 'connected' | 'error'>('checking');
 
   // Sign Up states
   const [signUpEmail, setSignUpEmail] = useState('');
@@ -45,6 +46,23 @@ export default function App() {
         setUserEmail(session.user.email || '');
       }
     });
+
+    // Test DB Connection
+    const testConnection = async () => {
+      if (isPlaceholder) {
+        setDbStatus('error');
+        return;
+      }
+      try {
+        const { error } = await supabase.from('profiles').select('count', { count: 'exact', head: true });
+        if (error) throw error;
+        setDbStatus('connected');
+      } catch (err) {
+        console.error('DB Connection Error:', err);
+        setDbStatus('error');
+      }
+    };
+    testConnection();
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -129,23 +147,33 @@ export default function App() {
     }
 
     setIsLoading(true);
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('nickname')
-      .eq('nickname', signUpNickname)
-      .single();
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('nickname')
+        .eq('nickname', signUpNickname);
 
-    if (error && error.code !== 'PGRST116') { // PGRST116 is "no rows found"
-      console.error('Error checking nickname:', error);
-      alert('중복 확인 중 오류가 발생했습니다.');
-    } else if (data) {
-      alert('이미 사용 중인 별명입니다.');
-      setIsNicknameChecked(false);
-    } else {
-      setIsNicknameChecked(true);
-      alert('사용 가능한 별명입니다.');
+      if (error) {
+        if (error.code === '42P01') {
+          alert('데이터베이스 설정이 완료되지 않았습니다. SQL 스키마를 먼저 실행해주세요.');
+        } else {
+          console.error('Error checking nickname:', error);
+          alert(`중복 확인 중 오류가 발생했습니다: ${error.message}`);
+        }
+        setIsNicknameChecked(false);
+      } else if (data && data.length > 0) {
+        alert('이미 사용 중인 별명입니다.');
+        setIsNicknameChecked(false);
+      } else {
+        setIsNicknameChecked(true);
+        alert('사용 가능한 별명입니다.');
+      }
+    } catch (err) {
+      console.error('Unexpected error:', err);
+      alert('예기치 못한 오류가 발생했습니다.');
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
   };
 
   const handleSignUp = async (e: FormEvent) => {
@@ -506,6 +534,39 @@ export default function App() {
           </button>
         )}
       </nav>
+
+      {/* DB Status Indicator */}
+      <div className="fixed bottom-4 right-4 z-50">
+        <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium shadow-lg backdrop-blur-md border ${
+          dbStatus === 'connected' ? 'bg-emerald-500/10 text-emerald-600 border-emerald-200' :
+          dbStatus === 'error' ? 'bg-rose-500/10 text-rose-600 border-rose-200' :
+          'bg-slate-500/10 text-slate-600 border-slate-200'
+        }`}>
+          <div className={`w-2 h-2 rounded-full animate-pulse ${
+            dbStatus === 'connected' ? 'bg-emerald-500' :
+            dbStatus === 'error' ? 'bg-rose-500' :
+            'bg-slate-400'
+          }`} />
+          {dbStatus === 'connected' ? 'DB 연결됨' :
+           dbStatus === 'error' ? (isPlaceholder ? '설정 필요' : 'DB 연결 오류') :
+           'DB 확인 중...'}
+        </div>
+      </div>
+
+      {isPlaceholder && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] w-full max-w-md px-4">
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 shadow-xl flex items-start gap-3">
+            <ShieldCheck className="w-6 h-6 text-amber-500 shrink-0 mt-0.5" />
+            <div>
+              <h3 className="text-sm font-bold text-amber-900">수파베이스 설정이 필요합니다</h3>
+              <p className="text-xs text-amber-700 mt-1 leading-relaxed">
+                우측 상단 <b>Settings &gt; Secrets</b>에서 <code className="bg-amber-100 px-1 rounded">VITE_SUPABASE_URL</code>과 
+                <code className="bg-amber-100 px-1 rounded ml-1">VITE_SUPABASE_ANON_KEY</code>를 설정해주세요.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Header */}
       <header className="max-w-2xl mx-auto pt-6 pb-8 px-6 text-center">
