@@ -24,7 +24,7 @@ export default function App() {
   const [signUpName, setSignUpName] = useState('');
   const [signUpPhone, setSignUpPhone] = useState('');
   const [signUpRegion, setSignUpRegion] = useState('');
-  const [signUpUserType, setSignUpUserType] = useState<'beauty' | 'social' | null>(null);
+  const [signUpUserType, setSignUpUserType] = useState<'beauty' | 'social' | null>('beauty');
   const [signUpNickname, setSignUpNickname] = useState('');
   const [isNicknameChecked, setIsNicknameChecked] = useState(false);
   const [signUpVerificationCode, setSignUpVerificationCode] = useState('');
