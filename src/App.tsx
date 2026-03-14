@@ -1,6 +1,7 @@
 import { useState, useEffect, FormEvent } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { RefreshCw, History, Trash2, Trophy, Sparkles, User, LogIn, ArrowLeft, Mail, Lock, UserPlus, ShieldCheck, Phone, MapPin, CheckCircle2, Scissors, HeartHandshake, Fingerprint } from 'lucide-react';
+import { supabase } from './lib/supabase';
 
 type LottoHistory = {
   id: number;
@@ -16,6 +17,8 @@ export default function App() {
   const [showSignUp, setShowSignUp] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userEmail, setUserEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
   // Sign Up states
   const [signUpEmail, setSignUpEmail] = useState('');
@@ -32,17 +35,33 @@ export default function App() {
   const [isVerified, setIsVerified] = useState(false);
   const [timer, setTimer] = useState(0);
 
-  // Load history and auth state from localStorage on mount
+  // Load history and auth state on mount
   useEffect(() => {
     const savedHistory = localStorage.getItem('lotto_history');
     if (savedHistory) {
       setHistory(JSON.parse(savedHistory));
     }
-    const savedUser = localStorage.getItem('lotto_user');
-    if (savedUser) {
-      setIsLoggedIn(true);
-      setUserEmail(savedUser);
-    }
+
+    // Check current session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        setIsLoggedIn(true);
+        setUserEmail(session.user.email || '');
+      }
+    });
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) {
+        setIsLoggedIn(true);
+        setUserEmail(session.user.email || '');
+      } else {
+        setIsLoggedIn(false);
+        setUserEmail('');
+      }
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
   // Save history to localStorage whenever it changes
@@ -89,12 +108,22 @@ export default function App() {
     }
   };
 
-  const handleLogin = (e: FormEvent) => {
+  const handleLogin = async (e: FormEvent) => {
     e.preventDefault();
-    // Simple mock login
-    setIsLoggedIn(true);
-    localStorage.setItem('lotto_user', userEmail || 'guest@example.com');
-    setShowLogin(false);
+    setIsLoading(true);
+    
+    const { error } = await supabase.auth.signInWithPassword({
+      email: userEmail,
+      password: loginPassword,
+    });
+
+    if (error) {
+      alert(`로그인 실패: ${error.message}`);
+    } else {
+      setShowLogin(false);
+      setLoginPassword('');
+    }
+    setIsLoading(false);
   };
 
   // Timer for verification code
@@ -137,7 +166,7 @@ export default function App() {
     alert('사용 가능한 별명입니다.');
   };
 
-  const handleSignUp = (e: FormEvent) => {
+  const handleSignUp = async (e: FormEvent) => {
     e.preventDefault();
     if (!signUpUserType) {
       alert('회원 유형을 선택해주세요.');
@@ -155,17 +184,37 @@ export default function App() {
       alert('비밀번호가 일치하지 않습니다.');
       return;
     }
-    // Simple mock sign up
-    alert('회원가입이 완료되었습니다! 로그인해주세요.');
-    setUserEmail(signUpEmail);
-    setShowSignUp(false);
-    setShowLogin(true);
+
+    setIsLoading(true);
+    const { error } = await supabase.auth.signUp({
+      email: signUpEmail,
+      password: signUpPassword,
+      options: {
+        data: {
+          full_name: signUpName,
+          phone: signUpPhone,
+          region: signUpRegion,
+          user_type: signUpUserType,
+          nickname: signUpNickname,
+        }
+      }
+    });
+
+    if (error) {
+      alert(`회원가입 실패: ${error.message}`);
+    } else {
+      alert('회원가입이 완료되었습니다! 이메일 인증을 확인하거나 로그인해주세요.');
+      setShowSignUp(false);
+      setShowLogin(true);
+    }
+    setIsLoading(false);
   };
 
-  const handleLogout = () => {
-    setIsLoggedIn(false);
-    setUserEmail('');
-    localStorage.removeItem('lotto_user');
+  const handleLogout = async () => {
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      alert(`로그아웃 실패: ${error.message}`);
+    }
   };
 
   const getBallColor = (num: number) => {
@@ -406,9 +455,10 @@ export default function App() {
             </div>
             <button 
               type="submit"
-              className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-bold text-lg shadow-lg shadow-emerald-200 hover:bg-emerald-700 active:scale-[0.98] transition-all mt-2"
+              disabled={isLoading}
+              className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-bold text-lg shadow-lg shadow-emerald-200 hover:bg-emerald-700 active:scale-[0.98] transition-all mt-2 disabled:opacity-50"
             >
-              가입하기
+              {isLoading ? '가입 중...' : '가입하기'}
             </button>
           </form>
 
@@ -469,15 +519,18 @@ export default function App() {
                   type="password" 
                   required
                   placeholder="••••••••"
+                  value={loginPassword}
+                  onChange={(e) => setLoginPassword(e.target.value)}
                   className="w-full pl-12 pr-4 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all"
                 />
               </div>
             </div>
             <button 
               type="submit"
-              className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-bold text-lg shadow-lg shadow-indigo-200 hover:bg-indigo-700 active:scale-[0.98] transition-all"
+              disabled={isLoading}
+              className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-bold text-lg shadow-lg shadow-indigo-200 hover:bg-indigo-700 active:scale-[0.98] transition-all disabled:opacity-50"
             >
-              로그인하기
+              {isLoading ? '로그인 중...' : '로그인하기'}
             </button>
           </form>
 
